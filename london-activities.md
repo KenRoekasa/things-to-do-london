@@ -67,10 +67,6 @@
 - **Illuminations/Trails:** Christmas at Kew, Kenwood Christmas Trail, Chelsea Winter Village & Illuminations, Canary Winter Lights
 - **Ice Skating:** Queens Skate and Dine
 
-## ✈️ Trips & Getaways
-
-- Interlaken
-
 ## 🌐 Websites & Resources
 
 - **Design My Night** — designmynight.com
