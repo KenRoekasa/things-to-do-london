@@ -72,6 +72,7 @@
 - **[Philippines Summer Festival](https://empireevents.uk/events/philippines-summer-festival-2026)** — New River Sports Centre (July)
 - **[Magic of Thailand](https://magicofthailand.co.uk/)** — Thai food, culture & concerts, Ealing Common (Sat 5 – Sun 6 Sep)
 - **[Cocktails in the City](https://cocktailsinthecity.com/)** — pop-up bars from 20 of London's best in a private Georgian garden (Jul 2–4 & Aug 6–8)
+- **Comic Cons:** [MCM London Comic Con (ExCeL — twice a year, May & Oct)](https://www.mcmcomiccon.com/london/en-us.html), [London Comic Con Spring (Olympia, late Feb)](https://www.londoncomicconspring.com/), [London Comic Con Winter (Olympia, Nov)](https://londoncomicconwinter.com/), [London Film & Comic Con (Olympia — on hiatus, returns Aug 2027)](https://londonfilmandcomiccon.com/)
 
 ## 🎄 Seasonal Events: Winter/Christmas
 
