@@ -377,8 +377,14 @@ def build_events() -> str:
 
     main = re.sub(r'<section class="month-group".*?</section>', quieten, main, flags=re.S)
 
-    empties = set(re.findall(r'id="(m-[a-z]{3})"[^>]*>\s*<div class="month-head">.*?month-empty',
-                             main, flags=re.S))
+    # look inside each section on its own — a shared regex would happily run past the
+    # end of one month and pick up the next month's emptiness
+    empties = {
+        block.group(1)
+        for block in re.finditer(r'<section class="month-group[^>]*id="(m-[a-z]{3})".*?</section>',
+                                 main, flags=re.S)
+        if 'month-empty' in block.group(0)
+    }
 
     pills = ['          <button type="button" class="pill" data-filter="all" '
              'aria-pressed="true">Whole year</button>']
@@ -392,6 +398,7 @@ def build_events() -> str:
         )
 
     total = main.count('class="event-card"')
+    pill_markup = "\n".join(pills)
 
     body = f"""<div class="page">
   <a class="back-link" href="london-guide.html">{icon('back')} Back to the field guide</a>
@@ -415,7 +422,7 @@ def build_events() -> str:
   </header>
 
 {toolbar('Search the year — try "market", "fireworks", "free"',
-         'london-guide.html', 'Guide', 'search', "\n".join(pills), surprise=False)}
+         'london-guide.html', 'Guide', 'search', pill_markup, surprise=False)}
 {main}
   <div class="empty">
     <h2>Nothing matches &ldquo;<span id="empty-query"></span>&rdquo;</h2>
