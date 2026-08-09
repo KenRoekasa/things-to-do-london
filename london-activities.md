@@ -19,7 +19,7 @@
 - **Gaming Bars:** [Platform (Shoreditch)](https://experienceplatform.co.uk/), [XP Tavern (Aldgate)](https://www.xptavern.com/), [Playbox (Croydon)](https://www.playboxcroydon.co.uk/)
 - **Skating:** [Rollernation (Tottenham)](https://rollernation.com/)
 - **Adult Play:** [Wonderland Adult Soft Play (Palmers Green)](https://www.kbo2.co.uk/adult-events/27)
-- **Karting:** [Revolution Karting (Mile End)](https://revolutionkarting.com/), [K1 Speed (Canary Wharf)](https://www.k1speed.com/uk/canary-wharf.html)
+- **Karting:** [Revolution Karting (Mile End)](https://revolutionkarting.com/), [K1 Speed (Canary Wharf)](https://www.k1speed.com/uk/canary-wharf.html), [TeamSport (Brent Cross)](https://www.team-sport.co.uk/go-kart-tracks/brent-cross) (350m indoor track plus bowling, pool and arcades, inside the shopping centre), [TeamSport (Acton)](https://www.team-sport.co.uk/go-kart-tracks/acton) (500m multi-level), [TeamSport (Docklands)](https://www.team-sport.co.uk/go-kart-tracks/docklands) (800m multi-level with a mezzanine), [TeamSport (Edmonton)](https://www.team-sport.co.uk/go-kart-tracks/edmonton-north-london) (800m, North London's longest), [TeamSport (Mitcham)](https://www.team-sport.co.uk/go-kart-tracks/mitcham-south-london) (800m multi-level), [TeamSport (Watford)](https://www.team-sport.co.uk/go-kart-tracks/watford) (500m multi-level), [TeamSport (all London tracks)](https://www.team-sport.co.uk/go-kart-tracks/london)
 - **Axe Throwing & Combat:** [Axeperience (Tower Hill)](https://axeperience.co.uk/), [Laser Quest (Brent Cross)](https://lqbrentcross.co.uk/), [Archery Tag (Go Ape, Chelmsford)](https://goape.co.uk/adventures/archery-tag/)
 - **Indoor Skydiving:** [iFLY London (The O2)](https://www.iflyworld.co.uk/locations/ifly-london-at-the-o2/)
 
