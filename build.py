@@ -28,7 +28,7 @@ THEME_CSS = BUILD / "theme.css"
 APP_JS = BUILD / "app.js"
 EVENTS_MAIN = BUILD / "events-2026.main.html"
 
-BUILT_ON = "9 Aug 2026"
+BUILT_ON = "2 Oct 2026"
 
 ARROW = '<span class="arrow" aria-hidden="true">&#8599;</span>'
 
