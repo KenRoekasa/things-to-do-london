@@ -35,6 +35,9 @@ run means the live site is still on the old version.
 | `build/app.js` | search, category filtering, theme toggle |
 | `build/fonts.css` | two typefaces, base64-inlined (~330 KB, don't reformat) |
 | `.github/workflows/deploy.yml` | builds and publishes to GitHub Pages on push to `main` |
+| `.github/workflows/weekly.yml` | daily: collect feed finds; Mondays: post the inbox + site-health issues |
+| `tools/inbox.py` | discovery inbox — RSS feeds → filter → weekly `inbox` issue. State lives on the `inbox-state` branch |
+| `tools/health.py` | dead links, TBCs coming due, unconfirmed dates, stale "opening…" notes → weekly `site-health` issue |
 | `index.html`, `london-guide.html` | generated, git-ignored — byte-identical copies of the guide |
 | `events-2026.html` | generated, git-ignored — the calendar |
 

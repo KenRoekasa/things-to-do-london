@@ -1,0 +1,65 @@
+# Daily: read the things-to-do feeds and queue new finds (tools/inbox.py).
+# Mondays, or when run by hand: post the week's inbox and the site-health
+# report as GitHub issues, which email the repo owner.
+#
+# The inbox's memory (seen.json, queue.json) lives on the `inbox-state` branch
+# so the daily runs never add commits to main.
+name: Inbox and health check
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC = 7am in summer, 6am in winter
+  workflow_dispatch:
+
+permissions:
+  contents: write   # push inbox-state
+  issues: write
+
+concurrency:
+  group: inbox-state
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Load inbox state
+        run: |
+          git fetch --depth 1 origin inbox-state
+          git worktree add state FETCH_HEAD
+
+      - name: Collect today's finds
+        run: python3 tools/inbox.py collect --state state
+
+      - name: Decide whether to post
+        id: when
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ] || [ "$(date -u +%u)" = 1 ]; then
+            echo "post=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post the weekly inbox
+        if: steps.when.outputs.post == 'true'
+        run: python3 tools/inbox.py post --state state
+
+      - name: Save inbox state
+        if: always()
+        working-directory: state
+        run: |
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -qm "Inbox state $(date -u +%F)" || exit 0
+          git push origin HEAD:inbox-state
+
+      - name: Post the site-health report
+        if: steps.when.outputs.post == 'true'
+        run: python3 tools/health.py
