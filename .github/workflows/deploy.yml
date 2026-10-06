@@ -1,0 +1,50 @@
+# Builds the pages from source on every push to main and publishes them to
+# GitHub Pages. The HTML is generated here, so edits only need to touch
+# london-activities.md or build/ — including from GitHub's web editor.
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A newer push supersedes a deploy that hasn't finished yet.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to 3.11: the build must stay runnable there (see CLAUDE.md).
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Build pages
+        run: python3 build.py
+
+      - name: Stage site
+        run: |
+          mkdir _site
+          cp index.html london-guide.html events-*.html _site/
+
+      - uses: actions/upload-pages-artifact@v5
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

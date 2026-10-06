@@ -14,12 +14,15 @@ output** — never hand-edit `index.html`, `london-guide.html` or `events-2026.h
 python3 build.py
 ```
 
-It rewrites all three HTML files and prints a per-category entry count. Commit the
-regenerated HTML alongside the source edit — the pages are checked in, so a commit that
-updates the markdown but not the HTML leaves the published site stale.
+It rewrites all three HTML files and prints a per-category entry count. The HTML is
+**not committed** (it's git-ignored): on push to `main`, `.github/workflows/deploy.yml`
+runs the same build and publishes the pages to GitHub Pages. The local build is the check —
+it hard-fails on a malformed source, and its output is what you open to eyeball a change.
 
 If the user adds something ("add X to the guide", "put Y in for September"), the job is
-not done until the build has been run and the HTML diff is part of the change.
+not done until the build has passed locally and the source edit is committed. Once pushed,
+confirm the `Build and deploy` run went green (`gh run list --limit 1`) — a red or stuck
+run means the live site is still on the old version.
 
 ## Layout
 
@@ -31,8 +34,9 @@ not done until the build has been run and the HTML diff is part of the change.
 | `build/theme.css` | design system — colour tokens, type scale, route-line layout |
 | `build/app.js` | search, category filtering, theme toggle |
 | `build/fonts.css` | two typefaces, base64-inlined (~330 KB, don't reformat) |
-| `index.html`, `london-guide.html` | generated — byte-identical copies of the guide |
-| `events-2026.html` | generated — the calendar |
+| `.github/workflows/deploy.yml` | builds and publishes to GitHub Pages on push to `main` |
+| `index.html`, `london-guide.html` | generated, git-ignored — byte-identical copies of the guide |
+| `events-2026.html` | generated, git-ignored — the calendar |
 
 Pages are fully self-contained: fonts, CSS and JS are inlined so they open straight off
 the filesystem with no network. Keep it that way — no CDN links, no external requests.
@@ -88,8 +92,8 @@ Edit `build/events-2026.main.html` directly, inside the right `<section class="m
   (Time Out, DesignMyNight, Secret London) are a fallback for roundups.
 - The build must stay stdlib-only and runnable on Python 3.11 — in particular, no
   backslashes inside f-string expressions (that needs 3.12+). Build a local variable first.
-- Re-running `python3 build.py` with no source change must produce no diff. If it does,
-  something non-deterministic crept in.
+- Re-running `python3 build.py` with no source change must produce identical output
+  (compare `md5sum *.html`). If it doesn't, something non-deterministic crept in.
 
 ## Checking the result
 

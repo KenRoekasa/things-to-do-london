@@ -101,7 +101,7 @@ instead, under the matching `##` section. Both can be true; put it in both.
 python3 build.py
 ```
 
-Then run it a second time and confirm `git status` shows nothing new — a second-run diff means
-something non-deterministic crept in. Commit the regenerated `events-2026.html`, `index.html` and
-`london-guide.html` alongside the source edit; the pages are checked in, and a source-only commit
-publishes a stale site.
+The local build is a check — it fails loudly on a malformed entry, and the output can be opened
+to eyeball the result. The generated HTML is not committed: commit the source edit and the
+`Build and deploy` workflow rebuilds and publishes on push. Run the build twice and compare
+checksums (`md5sum *.html`) — a second-run difference means something non-deterministic crept in.

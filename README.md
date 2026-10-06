@@ -6,20 +6,27 @@ An accumulating list of cool things to do in London.
 
 ## Pages
 
-- [index.html](index.html) / [london-guide.html](london-guide.html) — the field guide, generated from the markdown
-- [events-2026.html](events-2026.html) — a month-by-month calendar, linked from the guide's toolbar. Future years get their own `events-YYYY.html`.
+Published at <https://kenroekasa.github.io/things-to-do-london/>:
+
+- `index.html` / `london-guide.html` — the field guide, generated from the markdown
+- `events-2026.html` — a month-by-month calendar, linked from the guide's toolbar. Future years get their own `events-YYYY.html`.
 
 Both are single self-contained files: fonts, CSS and JS are inlined, so they open straight off the filesystem with no server and no network. Each has instant search, category filters, a light/dark theme toggle that remembers your choice, and a layout that works on phone, tablet and desktop.
 
-## Rebuilding
+## Publishing
 
-After editing `london-activities.md`:
+Push to `main` and the [Build and deploy](.github/workflows/deploy.yml) workflow runs `build.py` and publishes the pages. The HTML is generated in CI and not committed, so an edit to `london-activities.md` — including one made in GitHub's web editor on a phone — is all it takes.
+
+## Building locally
+
+To preview a change before pushing:
 
 ```sh
 python3 build.py
+xdg-open index.html
 ```
 
-That rewrites all three HTML files. The shared pieces live in `build/`:
+That writes all three HTML files (git-ignored). The shared pieces live in `build/`:
 
 | file | what it is |
 | --- | --- |
