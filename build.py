@@ -340,6 +340,7 @@ def build_guide(sections) -> str:
   <footer class="colophon">
     <span>Built from <a href="london-activities.md">london-activities.md</a></span>
     <span>Last built {BUILT_ON}</span>
+    <span>Data as JSON: <a href="api/index.json">api/index.json</a> &middot; <a href="api/guide.json">guide</a> &middot; <a href="api/events-2026.json">events</a></span>
   </footer>
 </div>"""
 
@@ -659,6 +660,7 @@ def build_events() -> str:
   <footer class="colophon">
     <span>Part of the <a href="london-guide.html">London Field Guide</a></span>
     <span>TBC entries update as organisers confirm dates</span>
+    <span>Data as JSON: <a href="api/index.json">api/index.json</a> &middot; <a href="api/guide.json">guide</a> &middot; <a href="api/events-2026.json">events</a></span>
   </footer>
 </div>"""
 
