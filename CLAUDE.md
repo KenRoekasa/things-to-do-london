@@ -40,6 +40,7 @@ run means the live site is still on the old version.
 | `tools/health.py` | dead links, TBCs coming due, unconfirmed dates, stale "opening…" notes → weekly `site-health` issue |
 | `index.html`, `london-guide.html` | generated, git-ignored — byte-identical copies of the guide |
 | `events-2026.html` | generated, git-ignored — the calendar |
+| `api/*.json` | generated, git-ignored — read-only JSON API (`index`, `guide`, `events-2026`), published alongside the pages |
 
 Pages are fully self-contained: fonts, CSS and JS are inlined so they open straight off
 the filesystem with no network. Keep it that way — no CDN links, no external requests.
