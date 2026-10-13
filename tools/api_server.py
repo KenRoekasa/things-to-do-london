@@ -161,7 +161,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "LondonFieldGuide/1.0"
 
     def log_message(self, fmt, *args):  # one short line per request
-        print(f"{self.address_string()} {fmt % args}")
+        print(f"{self.address_string()} {fmt % args}", flush=True)
 
     def send(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -309,7 +309,7 @@ def main() -> None:
     Handler.data = Data(source)
     Handler.data.refresh(force=True)
     print(f"serving {len(Handler.data.events)} events and {Handler.data.guide['count']} guide "
-          f"entries from {source} on http://{args.host}:{args.port}/")
+          f"entries from {source} on http://{args.host}:{args.port}/", flush=True)
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 
 
