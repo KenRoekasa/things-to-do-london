@@ -111,7 +111,7 @@
 
 ## 🌐 Websites & Resources
 
-- **Event Listings:** [Time Out London](https://www.timeout.com/london), [Design My Night](https://www.designmynight.com), [Skiddle](https://www.skiddle.com/whats-on/London/), [Dice](https://dice.fm/london) (link dead Oct 2026, search again next year)
+- **Event Listings:** [Time Out London](https://www.timeout.com/london), [Design My Night](https://www.designmynight.com), [Skiddle](https://www.skiddle.com/whats-on/London/), [Dice](https://dice.fm/browse/london-54d8a23438fe5d27d500001c)
 - **Hidden Gems & Culture:** [Secret London](https://secretldn.com), [Londonist](https://londonist.com/), [Concrete Playground](https://concreteplayground.com/london)
 - **Food & Drink Guides:** [Hot Dinners](https://www.hot-dinners.com/), [Eater London](https://london.eater.com/), [SquareMeal](https://www.squaremeal.co.uk/), [The Infatuation London](https://www.theinfatuation.com/london)
 - **Rooftop & Nightlife:** [Design My Night Rooftop Events](https://www.designmynight.com/london/whats-on/rooftop-events-in-london), [Resident Advisor](https://ra.co/events/uk/london)
