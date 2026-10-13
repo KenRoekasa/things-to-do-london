@@ -331,6 +331,7 @@
         end: end,
         days: days ? days.split(',').map(function (d) { return key(parse(d)); }) : null,
         opens: card.hasAttribute('data-opens'),
+        kenny: (card.getAttribute('data-kenny') || '').split(' ').filter(Boolean),
         undated: card.hasAttribute('data-undated'),
         long: start && end && spanDays(start, end) > LONG
       };
@@ -364,13 +365,29 @@
           out.push({ ev: ev, tag: '' });
         }
       });
-      return out;
+      // Kenny's picks first, so a busy day never hides them behind "+n more"
+      function rank(e) { return e.ev.kenny.indexOf('rec') !== -1 ? 0 : (e.ev.kenny.length ? 1 : 2); }
+      return out.sort(function (a, b) { return rank(a) - rank(b); });
+    }
+
+    var BADGES = {
+      rec: ['\u2605 Kenny recommends', 'Kenny has been and loved it'],
+      featured: ['\u25c6 Featured', 'On Kenny\u2019s want-to-do list']
+    };
+
+    function badges(ev) {
+      return ['rec', 'featured'].filter(function (t) { return ev.kenny.indexOf(t) !== -1; })
+        .map(function (t) {
+          return '<span class="kenny kenny--' + t + '" title="' + BADGES[t][1] + '">' + BADGES[t][0] + '</span>';
+        }).join('');
     }
 
     function chip(entry) {
       var label = (entry.tag ? entry.tag + ': ' : '') + entry.ev.name;
+      var mark = entry.ev.kenny.indexOf('rec') !== -1 ? '\u2605 '
+        : (entry.ev.kenny.indexOf('featured') !== -1 ? '\u25c6 ' : '');
       return '<span class="cal-chip" style="' + esc(entry.ev.style) + '" title="' + esc(label) + '">' +
-        (entry.tag ? '<b>' + esc(entry.tag) + '</b> ' : '') + esc(entry.ev.name) + '</span>';
+        (entry.tag ? '<b>' + esc(entry.tag) + '</b> ' : '') + mark + esc(entry.ev.name) + '</span>';
     }
 
     function item(entry, when) {
@@ -381,7 +398,7 @@
         : esc(ev.name);
       return '<li class="cal-item" style="' + esc(ev.style) + '">' +
         '<span class="cal-item-when">' + esc(when || ev.when) + '</span>' +
-        '<div><h4>' + name + '</h4>' + (ev.desc ? '<p>' + esc(ev.desc) + '</p>' : '') + '</div></li>';
+        '<div><h4>' + name + badges(ev) + '</h4>' + (ev.desc ? '<p>' + esc(ev.desc) + '</p>' : '') + '</div></li>';
     }
 
     function renderDay() {

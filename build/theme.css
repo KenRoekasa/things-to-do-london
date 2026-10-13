@@ -1280,3 +1280,34 @@ body.is-scrolled .to-top { opacity: 1; transform: none; pointer-events: auto; }
 @media print {
   .view-switch, .cal { display: none !important; }
 }
+
+/* ------------------------------------------------------- kenny's marks --- */
+
+/* ★ been and loved it · ◆ on the want-to-do list. Ink, not a category colour,
+   so they read as Kenny's voice on top of the route lines. */
+.kenny {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-left: 8px;
+  padding: 1px 8px 0;
+  border-radius: 999px;
+  font-family: "Franklin Text", ui-sans-serif, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 18px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: 0.15em;
+}
+
+.kenny--rec { background: var(--ink); color: var(--bg); }
+.kenny--featured { border: 1px solid var(--ink-2); color: var(--ink); line-height: 16px; }
+
+.chip .kenny { margin-left: 6px; }
+.chip.is-rec { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.chip.is-featured:not(.is-rec) { border-style: dashed; border-color: var(--ink-2); }
+
+.event-body h3 .kenny, .cal-item h4 .kenny { margin-left: 10px; }
+.stop-title + .kenny { margin-left: 10px; }

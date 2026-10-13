@@ -59,6 +59,13 @@ Notes: text sitting *after* a link attaches to that link as a parenthetical. Put
 neighbourhood inside the link text (`[Bounce (Old Street)](url)`) — search indexes it, so
 "Peckham" or "Soho" finds the venue.
 
+**Kenny's marks.** Put a tag straight after a link (no space needed) to badge it:
+`{rec}` = ★ Kenny recommends (been, loved it), `{featured}` = ◆ Featured (want-to-do /
+looks interesting). Both can stack: `[Bounce (Old Street)](url){rec}`, or after the bold
+for the single-venue shape: `- **[Name](url)**{featured} — sentence`. On a calendar card
+use `<div class="event-card" data-kenny="rec">` (or `"featured"`, or `"rec featured"`).
+The badge text is searchable, and the JSON API carries `recommended` / `featured`.
+
 Sections are matched to line colours **by position**, via the `LINES` list in `build.py`.
 Adding, removing or reordering a `##` heading means updating `LINES` to match — the build
 hard-fails with a section-count mismatch if you forget. Leading emoji in headings are

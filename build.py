@@ -60,6 +60,29 @@ MONTHS = [
 
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
+# Kenny's own marks, written straight after a link: [Bounce](url){rec}
+#   {rec}       been, loved it, would send people
+#   {featured}  on the want-to-do list / one that looks interesting
+KENNY_TAGS = re.compile(r"^(?:\s*\{(rec|featured)\})+")
+KENNY_BADGES = {
+    "rec": ("&#9733; Kenny recommends", "Kenny has been and loved it"),
+    "featured": ("&#9670; Featured", "On Kenny&#x27;s want-to-do list"),
+}
+
+
+def take_tags(text: str) -> tuple[list[str], str]:
+    """Split leading {rec}/{featured} tags off `text`."""
+    m = KENNY_TAGS.match(text)
+    if not m:
+        return [], text
+    return re.findall(r"\{(rec|featured)\}", m.group(0)), text[m.end():]
+
+
+def badges(tags) -> str:
+    return "".join(
+        f'<span class="kenny kenny--{t}" title="{KENNY_BADGES[t][1]}">{KENNY_BADGES[t][0]}</span>'
+        for t in ("rec", "featured") if t in tags)
+
 
 # --------------------------------------------------------------- parsing ----
 
@@ -76,12 +99,16 @@ def parse_links(value: str):
     items = []
     cursor = 0
     for match in LINK_RE.finditer(value):
+        if match.start() < cursor:
+            continue
         between = value[cursor:match.start()]
         note = between.strip().strip(",").strip()
         if note and items:
             items[-1]["note"] = note
-        items.append({"name": match.group(1).strip(), "url": match.group(2).strip(), "note": ""})
-        cursor = match.end()
+        tags, after = take_tags(value[match.end():])
+        items.append({"name": match.group(1).strip(), "url": match.group(2).strip(), "note": "",
+                      "tags": tags})
+        cursor = len(value) - len(after)
 
     tail = value[cursor:].strip().strip(",").strip()
     if tail and items:
@@ -118,8 +145,10 @@ def parse_markdown(path: Path):
 
         head_links = parse_links(head)
         if head_links:
-            # '- **[Name](url)** — description' : one named thing plus a sentence
-            note = re.sub(r"^[—–-]\s*", "", rest).strip()
+            # '- **[Name](url)**{rec} — description' : one named thing plus a sentence
+            tags, rest = take_tags(rest)
+            head_links[0]["tags"] = sorted(set(head_links[0]["tags"]) | set(tags))
+            note = re.sub(r"^[—–-]\s*", "", rest.strip()).strip()
             current["stops"].append({
                 "kind": "note",
                 "link": head_links[0],
@@ -139,9 +168,11 @@ def parse_markdown(path: Path):
 
 def render_chip(venue: dict) -> str:
     note = f'<span class="note">{esc(venue["note"])}</span>' if venue.get("note") else ""
+    tags = venue.get("tags") or []
+    marked = "".join(f" is-{t}" for t in tags)
     return (
-        f'<a class="chip" data-leaf href="{esc(venue["url"])}" '
-        f'target="_blank" rel="noopener">{esc(venue["name"])}{note}{ARROW}</a>'
+        f'<a class="chip{marked}" data-leaf href="{esc(venue["url"])}" '
+        f'target="_blank" rel="noopener">{esc(venue["name"])}{badges(tags)}{note}{ARROW}</a>'
     )
 
 
@@ -152,7 +183,7 @@ def render_stop(stop: dict) -> str:
         return (
             '        <div class="stop stop--note" data-item>\n'
             f'          <a class="stop-title" data-label href="{esc(link["url"])}" '
-            f'target="_blank" rel="noopener">{esc(link["name"])}{ARROW}</a>\n'
+            f'target="_blank" rel="noopener">{esc(link["name"])}{ARROW}</a>{badges(link.get("tags") or [])}\n'
             f'          {note}\n'
             '        </div>'
         )
@@ -445,9 +476,10 @@ def date_attrs(main: str, year: int, warnings: list) -> str:
             label = re.search(r'<span class="event-date">(.*?)</span>', card.group(0), re.S).group(1)
             attrs = event_dates(label, month, year, warnings)
             extra = "".join(f' data-{k}="{v}"' for k, v in attrs.items())
-            return card.group(0).replace('<div class="event-card">', f'<div class="event-card"{extra}>', 1)
+            return re.sub(r'<div class="event-card"([^>]*)>', lambda m: f'<div class="event-card"{m.group(1)}{extra}>',
+                          card.group(0), count=1)
 
-        return re.sub(r'<div class="event-card">.*?<span class="event-date">.*?</span>',
+        return re.sub(r'<div class="event-card"[^>]*>.*?<span class="event-date">.*?</span>',
                       per_card, sec.group(0), flags=re.S)
 
     return re.sub(r'<section class="month-group" id="m-([a-z]{3})".*?</section>',
@@ -528,6 +560,8 @@ def events_json(main: str, year: int) -> dict:
                 "opens": "opens" in attrs,
                 "dated": "undated" not in attrs,
                 "description": plain(para.group(1)) if para else "",
+                "recommended": "rec" in attrs.get("kenny", "").split(),
+                "featured": "featured" in attrs.get("kenny", "").split(),
             })
     return {"year": year, "count": len(events), "events": events}
 
@@ -540,11 +574,13 @@ def guide_json(sections) -> dict:
             if stop["kind"] == "note":
                 link = stop["link"]
                 entries.append({"group": link["name"], "name": link["name"], "url": link["url"],
-                                "note": stop["note"]})
+                                "note": stop["note"], "recommended": "rec" in link.get("tags", []),
+                                "featured": "featured" in link.get("tags", [])})
             else:
                 for v in stop["venues"]:
                     entries.append({"group": stop["label"], "name": v["name"], "url": v["url"],
-                                    "note": v["note"]})
+                                    "note": v["note"], "recommended": "rec" in v.get("tags", []),
+                                    "featured": "featured" in v.get("tags", [])})
         categories.append({"name": section["title"], "short": LINES[index][1],
                            "count": len(entries), "entries": entries})
     return {"count": sum(c["count"] for c in categories), "categories": categories}
@@ -593,6 +629,12 @@ def build_events() -> str:
         main,
     )
     main = main.replace('<div class="event-card"', '<div class="event-card" data-item')
+
+    def kenny_badges(card):
+        tags = card.group(1).split()
+        return card.group(0).replace("</h3>", badges(tags) + "</h3>", 1)
+
+    main = re.sub(r'<div class="event-card"[^>]*data-kenny="([^"]*)".*?</h3>', kenny_badges, main, flags=re.S)
     main = main.replace('<span class="count">', '<span class="count" data-count>')
 
     # months with nothing booked in yet are drawn quiet rather than loud

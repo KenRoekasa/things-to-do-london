@@ -118,7 +118,7 @@ def calendar_cards() -> list[Card]:
         src = path.read_text(encoding="utf-8")
         for sec in re.finditer(r'<section class="month-group" id="m-(\w+)".*?</section>', src, re.S):
             month = MONTHS[sec.group(1)]
-            for card in re.finditer(r'<div class="event-card">(.*?)\n      </div>\n', sec.group(0), re.S):
+            for card in re.finditer(r'<div class="event-card"[^>]*>(.*?)\n      </div>\n', sec.group(0), re.S):
                 body = card.group(1)
                 when = strip_tags(re.search(r'<span class="event-date">(.*?)</span>', body, re.S).group(1))
                 name = strip_tags(re.search(r"<h3>(.*?)</h3>", body, re.S).group(1)).rstrip("↗").strip()
@@ -130,7 +130,7 @@ def calendar_links() -> list[Link]:
     links = []
     for path in EVENTS_FILES:
         src = path.read_text(encoding="utf-8")
-        for card in re.finditer(r'<div class="event-card">(.*?)\n      </div>\n', src, re.S):
+        for card in re.finditer(r'<div class="event-card"[^>]*>(.*?)\n      </div>\n', src, re.S):
             body = card.group(1)
             name = strip_tags(re.search(r"<h3>(.*?)</h3>", body, re.S).group(1)).rstrip("↗").strip()
             if KNOWN_DEAD.search(strip_tags(body)):
