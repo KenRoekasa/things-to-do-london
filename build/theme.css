@@ -1638,3 +1638,9 @@ body.is-scrolled .to-top { opacity: 1; transform: none; pointer-events: auto; }
 /* keep the last chips reachable above the bar, and the to-top button clear of it */
 .is-picking .page { padding-bottom: 170px; }
 .is-picking .to-top { bottom: 150px; }
+
+/* swipe page: no back-to-top button, and a header-free deck that fits one screen */
+.is-swipe-page .to-top { display: none !important; }
+.is-swiping .masthead, .is-swiping .back-link, .is-swiping .colophon { display: none; }
+.is-swiping .swipe { margin-top: 16px; }
+.is-swiping .sw-stack { height: min(calc(100svh - 230px), 520px); }

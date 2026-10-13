@@ -157,9 +157,15 @@
 
   /* ---------------------------------------------------------- screens --- */
 
+  // while swiping, the header steps aside so the card and buttons fit on one
+  // screen with nothing to scroll; the page's back-to-top button never shows
+  // here, since on a phone it sat right beside the ♥ button
+  document.body.classList.add('is-swipe-page');
+
   function show(name) {
     $$('.sw-screen').forEach(function (s) { s.hidden = s.getAttribute('data-screen') !== name; });
-    window.scrollTo({ top: $('#swipe').offsetTop - 20, behavior: 'smooth' });
+    document.body.classList.toggle('is-swiping', name === 'deck');
+    window.scrollTo({ top: name === 'deck' ? 0 : $('#swipe').offsetTop - 20, behavior: 'instant' });
   }
 
   $$('[data-goto]').forEach(function (b) {
