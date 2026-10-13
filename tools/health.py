@@ -45,6 +45,10 @@ MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
 BLOCKED = {401, 403, 405, 406, 429, 451, 999}
 DEAD = {404, 410}
 
+# A link we already know is dead but keep as a reference for next year's search,
+# e.g. "(link dead Oct 2026, search again next year)". Not re-reported.
+KNOWN_DEAD = re.compile(r"link dead", re.I)
+
 UNCONFIRMED = re.compile(
     r"unconfirmed|not yet confirmed|dates as listed|not announced", re.I)
 
@@ -84,6 +88,10 @@ def strip_tags(s: str) -> str:
 def guide_entries() -> list[tuple[str, str]]:
     """(entry name, rest of its text) for each link in the guide, with the
     note that follows it up to the next link."""
+    return [(name, text) for name, _, text in guide_entries_with_urls()]
+
+
+def guide_entries_with_urls() -> list[tuple[str, str, str]]:
     out = []
     for line in SOURCE_MD.read_text(encoding="utf-8").splitlines():
         if not line.startswith("- "):
@@ -93,14 +101,14 @@ def guide_entries() -> list[tuple[str, str]]:
             m = re.fullmatch(r"\[([^\]]+)\]\(([^)]+)\)", part)
             if m:
                 note = parts[i + 1] if i + 1 < len(parts) else ""
-                out.append((m.group(1), m.group(1) + note))
+                out.append((m.group(1), m.group(2), m.group(1) + note))
     return out
 
 
 def guide_links() -> list[Link]:
-    text = SOURCE_MD.read_text(encoding="utf-8")
     return [Link(url, name, "guide")
-            for name, url in re.findall(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", text)]
+            for name, url, text in guide_entries_with_urls()
+            if url.startswith(("http://", "https://")) and not KNOWN_DEAD.search(text)]
 
 
 def calendar_cards() -> list[Card]:
@@ -125,6 +133,8 @@ def calendar_links() -> list[Link]:
         for card in re.finditer(r'<div class="event-card">(.*?)\n      </div>\n', src, re.S):
             body = card.group(1)
             name = strip_tags(re.search(r"<h3>(.*?)</h3>", body, re.S).group(1)).rstrip("↗").strip()
+            if KNOWN_DEAD.search(strip_tags(body)):
+                continue
             for url in re.findall(r'href="(https?://[^"]+)"', body):
                 links.append(Link(html.unescape(url), name, "calendar"))
     return links
@@ -181,8 +191,9 @@ def month_bounds(year: int, month: int) -> tuple[date, date]:
 def tbc_due(cards: list[Card], today: date) -> list[Card]:
     due = []
     for c in cards:
-        start, _ = month_bounds(c.year, c.month)
-        if "TBC" in c.when and start <= today + LOOKAHEAD:
+        start, end = month_bounds(c.year, c.month)
+        # A month that has already gone is next year's problem, not a TBC to chase.
+        if "TBC" in c.when and start <= today + LOOKAHEAD and end >= today:
             due.append(c)
     return due
 
