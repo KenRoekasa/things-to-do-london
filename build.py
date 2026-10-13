@@ -482,6 +482,12 @@ def plain(fragment: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", "", fragment))).strip()
 
 
+RUNS_TO = re.compile(
+    r"\b(?:to|until|till)\s+(\d{1,2})\s+"
+    r"(January|February|March|April|May|June|July|August|September|October|November|December)"
+    r"(?:\s+(\d{4}))?", re.I)
+
+
 def events_json(main: str, year: int) -> dict:
     """The calendar as data. `main` is the source after date_attrs() has run."""
     events = []
@@ -493,6 +499,23 @@ def events_json(main: str, year: int) -> dict:
             h3 = re.search(r"<h3>(.*?)</h3>", inner, re.S).group(1)
             link = re.search(r'href="([^"]+)"', h3)
             para = re.search(r"<p>(.*?)</p>", inner, re.S)
+            # "Opens Fri 13 … Runs to 16 May": the opening day is the start, the
+            # description carries the real end — so a date query finds it mid-run
+            if "opens" in attrs and para:
+                runs = RUNS_TO.search(plain(para.group(1)))
+                if runs:
+                    from datetime import date
+                    start = date.fromisoformat(attrs["start"])
+                    y = int(runs.group(3)) if runs.group(3) else start.year
+                    try:
+                        end = date(y, MONTH_NUM[runs.group(2)[:3].lower()], int(runs.group(1)))
+                        if end < start and not runs.group(3):
+                            end = end.replace(year=end.year + 1)
+                        attrs["end"] = end.isoformat()
+                    except ValueError:
+                        pass
+                else:
+                    attrs["end"] = None  # open-ended: running from its opening day
             events.append({
                 "name": plain(h3).rstrip("↗").strip(),
                 "url": html.unescape(link.group(1)) if link else None,
