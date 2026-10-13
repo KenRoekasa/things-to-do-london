@@ -188,12 +188,20 @@ def month_bounds(year: int, month: int) -> tuple[date, date]:
     return date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
 
 
+def soon(c: Card, today: date) -> bool:
+    start, _ = month_bounds(c.year, c.month)
+    return start <= today + LOOKAHEAD
+
+
 def tbc_due(cards: list[Card], today: date) -> list[Card]:
+    """Every calendar entry still marked TBC, from this month on. The whole list
+    goes in the issue each week so nothing waits until the last minute; the
+    report flags the ones within LOOKAHEAD."""
     due = []
     for c in cards:
-        start, end = month_bounds(c.year, c.month)
+        _, end = month_bounds(c.year, c.month)
         # A month that has already gone is next year's problem, not a TBC to chase.
-        if "TBC" in c.when and start <= today + LOOKAHEAD and end >= today:
+        if "TBC" in c.when and end >= today:
             due.append(c)
     return due
 
@@ -201,11 +209,24 @@ def tbc_due(cards: list[Card], today: date) -> list[Card]:
 def unconfirmed_due(cards: list[Card], today: date) -> list[Card]:
     due = []
     for c in cards:
-        start, end = month_bounds(c.year, c.month)
-        if ("TBC" not in c.when and UNCONFIRMED.search(c.text)
-                and start <= today + LOOKAHEAD and end >= today):
+        _, end = month_bounds(c.year, c.month)
+        if "TBC" not in c.when and UNCONFIRMED.search(c.text) and end >= today:
             due.append(c)
     return due
+
+
+GUIDE_TBC = re.compile(r"\bTBC\b|unconfirmed|not yet confirmed|not announced", re.I)
+
+
+def guide_tbc() -> list[tuple[str, str]]:
+    """Guide entries whose note still says a date is TBC."""
+    out = []
+    for name, text in guide_entries():
+        m = GUIDE_TBC.search(text)
+        if m and not KNOWN_DEAD.search(text):
+            note = text[len(name):].strip(" ,")
+            out.append((name, note[:140]))
+    return out
 
 
 def stale_notes(today: date) -> list[tuple[str, str]]:
@@ -230,7 +251,7 @@ def stale_notes(today: date) -> list[tuple[str, str]]:
 
 # --- report ------------------------------------------------------------------
 
-def render(today: date, dead, flaky, tbc, unconfirmed, stale) -> str:
+def render(today: date, dead, flaky, tbc, unconfirmed, stale, guide_tbcs=()) -> str:
     lines = []
 
     def section(title: str, items: list[str]) -> None:
@@ -241,10 +262,15 @@ def render(today: date, dead, flaky, tbc, unconfirmed, stale) -> str:
 
     section(f"🔗 Dead links ({len(dead)})",
             [f"**{l.name}** ({l.where}) — {why}  \n  {l.url}" for l, why in dead])
-    section(f"🗓️ TBC dates coming up ({len(tbc)})",
-            [f"**{c.name}** — {calendar.month_name[c.month]}, still “{c.when}”" for c in tbc])
+    def flag(c: Card) -> str:
+        return " ⏰ **within 4 weeks**" if soon(c, today) else ""
+
+    section(f"🗓️ All TBC dates still to confirm ({len(tbc)})",
+            [f"**{c.name}** — {calendar.month_name[c.month]}, still “{c.when}”{flag(c)}" for c in tbc])
     section(f"❓ Unconfirmed dates to re-check ({len(unconfirmed)})",
-            [f"**{c.name}** — {c.when} ({calendar.month_name[c.month]})" for c in unconfirmed])
+            [f"**{c.name}** — {c.when} ({calendar.month_name[c.month]}){flag(c)}" for c in unconfirmed])
+    section(f"📝 Guide entries still TBC ({len(guide_tbcs)})",
+            [f"**{name}** — {note}" for name, note in guide_tbcs])
     section(f"✏️ Guide notes that have gone stale ({len(stale)})",
             [f"**{name}** — “{phrase}” has passed" for name, phrase in stale])
     section(f"⚠️ Couldn't reach — may be temporary ({len(flaky)})",
@@ -288,7 +314,7 @@ def main() -> None:
     cards = calendar_cards()
     dead, flaky = ([], []) if args.no_links else check_links(guide_links() + calendar_links())
     body = render(args.today, dead, flaky, tbc_due(cards, args.today),
-                  unconfirmed_due(cards, args.today), stale_notes(args.today))
+                  unconfirmed_due(cards, args.today), stale_notes(args.today), guide_tbc())
     title = f"🩺 Site health — w/c {args.today:%d %b}"
 
     if args.dry_run:

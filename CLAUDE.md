@@ -82,6 +82,15 @@ Edit `build/events-2026.main.html` directly, inside the right `<section class="m
 - The `<span class="count">` in the month head is recalculated by `app.js` on load, but
   set it correctly anyway so the page reads right before JS runs.
 - Undated entries are marked TBC and tightened when organisers confirm.
+- The page has a List / Calendar switch. The month grid is drawn by `app.js` from the
+  cards themselves: `build.py` reads each `event-date` label ("Sat 17 &ndash; Sun 18",
+  "Sat 17 &amp; Sat 24", "Opens Fri 13", "Fri 21 Aug &ndash; Sun 6") into `data-start` /
+  `data-end` / `data-days`, using the weekday to place a bare day number in the right
+  month. Labels with no digits ("All month", "Date TBC", "June") show under "Running
+  through" for their month. The build prints a `warning:` if a weekday doesn't match its
+  date — fix the label rather than ignoring it.
+- Never insert or remove cards with string offsets on `</div>` — `        </div>` contains
+  `      </div>`, and that once nested cards inside each other. Rewrite whole cards.
 - Season colours come from `MONTH_SEASON` in `build.py`; the `style="--accent:…"` in the
   source file is overwritten at build time, so don't fuss over it.
 - A future year gets its own `build/events-YYYY.main.html` plus a `events-YYYY.html`
@@ -89,6 +98,9 @@ Edit `build/events-2026.main.html` directly, inside the right `<section class="m
 
 ## Conventions
 
+- A link that has died but is worth keeping as a reference for next year gets the note
+  `(link dead Oct 2026, search again next year)` in the guide, or "Link dead as of …" in a
+  calendar card. `tools/health.py` skips anything carrying "link dead".
 - `BUILT_ON` in `build.py` is a hand-set date string in the guide footer. Bump it when
   making a substantive content pass.
 - Entries link straight to the venue's own site where one exists; aggregator links

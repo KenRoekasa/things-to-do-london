@@ -136,6 +136,7 @@
 
   var input = $('#search');
   var pills = $$('.pill');
+  var calendar = null;  // set below on the events page
   var resultCount = $('#result-count');
   var resultNoun = $('#result-noun');
   var emptyQuery = $('#empty-query');
@@ -212,6 +213,7 @@
         : resultNoun.getAttribute('data-default');
     }
     if (emptyQuery) emptyQuery.textContent = query.trim();
+    if (calendar) calendar.render();
   }
 
   if (input) {
@@ -254,6 +256,11 @@
   pills.forEach(function (pill) {
     pill.addEventListener('click', function () {
       var value = pill.getAttribute('data-filter');
+      // in the month grid a month pill is navigation, not a filter
+      if (calendar && calendar.active() && value !== 'all') {
+        calendar.goto(value);
+        return;
+      }
       setCategory(category === value && value !== 'all' ? 'all' : value, true);
     });
   });
@@ -267,6 +274,239 @@
       if (input) input.focus();
     });
   }
+
+  /* --------------------------------------------------------- calendar --- */
+
+  // Month-grid view of the events page. The cards stay the source of truth:
+  // build.py stamps each one with data-start/data-end (and data-days for
+  // "Sat 17 & Sat 24"), and the grid is drawn from those.
+  var calRoot = $('#cal');
+  if (calRoot) calendar = (function () {
+    var YEAR = 2026;
+    var LONG = 14;  // runs longer than this show on their first and last day only
+    var MONTH_IDS = ['m-jan', 'm-feb', 'm-mar', 'm-apr', 'm-may', 'm-jun',
+      'm-jul', 'm-aug', 'm-sep', 'm-oct', 'm-nov', 'm-dec'];
+    var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+      'August', 'September', 'October', 'November', 'December'];
+    var DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    var grid = $('#cal-grid');
+    var title = $('#cal-title');
+    var dayPanel = $('#cal-day');
+    var ongoingPanel = $('#cal-ongoing');
+    var prev = $('#cal-prev');
+    var next = $('#cal-next');
+    var timeline = $('.timeline');
+    var viewBtns = $$('.view-btn');
+
+    function parse(iso) {
+      if (!iso) return null;
+      var p = iso.split('-');
+      return new Date(+p[0], +p[1] - 1, +p[2]);
+    }
+    function key(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+    function spanDays(a, b) { return Math.round((b - a) / 86400000) + 1; }
+    function esc(s) {
+      return s.replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    function shortDate(d) { return d.getDate() + ' ' + MONTH_NAMES[d.getMonth()].slice(0, 3); }
+
+    var events = $$('.event-card[data-item]').map(function (card) {
+      var link = $('h3 a', card);
+      var group = card.closest('[data-group]');
+      var days = card.getAttribute('data-days');
+      var start = parse(card.getAttribute('data-start'));
+      var end = parse(card.getAttribute('data-end'));
+      return {
+        card: card,
+        name: link ? link.textContent.replace('↗', '').trim() : $('h3', card).textContent.trim(),
+        url: link ? link.getAttribute('href') : '',
+        when: $('.event-date', card).textContent.trim(),
+        desc: ($('p', card) || { textContent: '' }).textContent.trim(),
+        style: group ? (group.getAttribute('style') || '') : '',
+        month: group ? MONTH_IDS.indexOf(group.getAttribute('data-group')) : -1,
+        start: start,
+        end: end,
+        days: days ? days.split(',').map(function (d) { return key(parse(d)); }) : null,
+        opens: card.hasAttribute('data-opens'),
+        undated: card.hasAttribute('data-undated'),
+        long: start && end && spanDays(start, end) > LONG
+      };
+    });
+
+    var today = new Date();
+    today = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var month = today.getFullYear() === YEAR ? today.getMonth()
+      : (today.getFullYear() > YEAR ? 11 : 0);
+    var selected = null;
+
+    function matches(ev) {
+      var needle = query.trim().toLowerCase();
+      return !needle || ev.card.getAttribute('data-text').indexOf(needle) !== -1;
+    }
+
+    // what a single day holds, with a tag for runs seen only at their ends
+    function on(day) {
+      var k = key(day);
+      var out = [];
+      events.forEach(function (ev) {
+        if (ev.undated || !ev.start || !matches(ev)) return;
+        if (ev.days) {
+          if (ev.days.indexOf(k) !== -1) out.push({ ev: ev, tag: '' });
+        } else if (ev.opens) {
+          if (key(ev.start) === k) out.push({ ev: ev, tag: 'Opens' });
+        } else if (ev.long) {
+          if (key(ev.start) === k) out.push({ ev: ev, tag: 'Starts' });
+          else if (key(ev.end) === k) out.push({ ev: ev, tag: 'Last day' });
+        } else if (k >= key(ev.start) && k <= key(ev.end)) {
+          out.push({ ev: ev, tag: '' });
+        }
+      });
+      return out;
+    }
+
+    function chip(entry) {
+      var label = (entry.tag ? entry.tag + ': ' : '') + entry.ev.name;
+      return '<span class="cal-chip" style="' + esc(entry.ev.style) + '" title="' + esc(label) + '">' +
+        (entry.tag ? '<b>' + esc(entry.tag) + '</b> ' : '') + esc(entry.ev.name) + '</span>';
+    }
+
+    function item(entry, when) {
+      var ev = entry.ev;
+      var name = ev.url
+        ? '<a href="' + esc(ev.url) + '" target="_blank" rel="noopener">' + esc(ev.name) +
+          '<span aria-hidden="true">&#8599;</span></a>'
+        : esc(ev.name);
+      return '<li class="cal-item" style="' + esc(ev.style) + '">' +
+        '<span class="cal-item-when">' + esc(when || ev.when) + '</span>' +
+        '<div><h4>' + name + '</h4>' + (ev.desc ? '<p>' + esc(ev.desc) + '</p>' : '') + '</div></li>';
+    }
+
+    function renderDay() {
+      if (!selected) { dayPanel.innerHTML = ''; return; }
+      var list = on(selected);
+      var head = DAY_NAMES[selected.getDay()] + ' ' + selected.getDate() + ' ' +
+        MONTH_NAMES[selected.getMonth()];
+      dayPanel.innerHTML = '<h3>' + head + '</h3>' + (list.length
+        ? '<ul>' + list.map(function (e) {
+            return item(e, e.tag ? e.tag + ' · ' + e.ev.when : e.ev.when);
+          }).join('') + '</ul>'
+        : '<p class="cal-none">Nothing dated for this day &mdash; see what&rsquo;s running all month below.</p>');
+    }
+
+    function render() {
+      if (!active()) return;
+      var first = new Date(YEAR, month, 1);
+      var last = new Date(YEAR, month + 1, 0);
+      title.textContent = MONTH_NAMES[month] + ' ' + YEAR;
+      calRoot.setAttribute('style', $('#' + MONTH_IDS[month]).getAttribute('style') || '');
+      prev.disabled = month === 0;
+      next.disabled = month === 11;
+      pills.forEach(function (p) {
+        p.setAttribute('aria-pressed', String(p.getAttribute('data-filter') === MONTH_IDS[month]));
+      });
+
+      if (!selected || selected.getMonth() !== month) {
+        selected = today.getMonth() === month && today.getFullYear() === YEAR ? today : null;
+        for (var d = 1; !selected && d <= last.getDate(); d++) {
+          if (on(new Date(YEAR, month, d)).length) selected = new Date(YEAR, month, d);
+        }
+        if (!selected) selected = first;
+      }
+
+      var lead = (first.getDay() + 6) % 7;  // weeks start on Monday
+      var cells = [];
+      for (var i = 0; i < lead; i++) cells.push('<span class="cal-cell is-out" aria-hidden="true"></span>');
+      for (var day = 1; day <= last.getDate(); day++) {
+        var date = new Date(YEAR, month, day);
+        var list = on(date);
+        var cls = 'cal-cell';
+        if (key(date) === key(today)) cls += ' is-today';
+        if (key(date) === key(selected)) cls += ' is-selected';
+        if (list.length) cls += ' has-events';
+        var shown = list.slice(0, 3).map(chip).join('');
+        var more = list.length > 3 ? '<span class="cal-more">+' + (list.length - 3) + ' more</span>' : '';
+        cells.push('<button type="button" class="' + cls + '" data-day="' + day + '" aria-label="' +
+          DAY_NAMES[date.getDay()] + ' ' + day + ' ' + MONTH_NAMES[month] + ', ' + list.length +
+          (list.length === 1 ? ' event' : ' events') + '"' +
+          (key(date) === key(selected) ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' +
+          '<span class="cal-num">' + day + '</span>' +
+          '<span class="cal-chips">' + shown + more + '</span></button>');
+      }
+      while (cells.length % 7) cells.push('<span class="cal-cell is-out" aria-hidden="true"></span>');
+      grid.innerHTML = cells.join('');
+      renderDay();
+
+      // long runs that overlap the month, and this month's undated entries
+      var ongoing = events.filter(function (ev) {
+        if (!matches(ev)) return false;
+        if (ev.undated) return ev.month === month;
+        return ev.long && !ev.days && ev.start <= last && ev.end >= first;
+      });
+      ongoingPanel.innerHTML = ongoing.length
+        ? '<h3>Running through ' + MONTH_NAMES[month] + '</h3><ul>' + ongoing.map(function (ev) {
+            var when = ev.undated ? ev.when
+              : shortDate(ev.start) + ' – ' + shortDate(ev.end);
+            return item({ ev: ev, tag: '' }, when);
+          }).join('') + '</ul>'
+        : '';
+    }
+
+    grid.addEventListener('click', function (e) {
+      var cell = e.target.closest('.cal-cell[data-day]');
+      if (!cell) return;
+      selected = new Date(YEAR, month, +cell.getAttribute('data-day'));
+      render();
+      if (window.matchMedia('(max-width: 640px)').matches) {
+        dayPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+    prev.addEventListener('click', function () { if (month > 0) { month--; render(); } });
+    next.addEventListener('click', function () { if (month < 11) { month++; render(); } });
+    $('#cal-today').addEventListener('click', function () {
+      if (today.getFullYear() === YEAR) { month = today.getMonth(); selected = today; }
+      render();
+    });
+
+    function active() { return body.classList.contains('view-cal'); }
+
+    function setView(view, remember) {
+      var cal = view === 'cal';
+      body.classList.toggle('view-cal', cal);
+      calRoot.hidden = !cal;
+      if (timeline) timeline.hidden = cal;
+      viewBtns.forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-view') === view));
+      });
+      if (remember) { try { localStorage.setItem('lfg-events-view', view); } catch (e) {} }
+      if (cal) {
+        category = 'all';  // the grid navigates by month instead of filtering
+        render();
+      } else {
+        setCategory('all', false);
+      }
+    }
+
+    viewBtns.forEach(function (b) {
+      b.addEventListener('click', function () { setView(b.getAttribute('data-view'), true); });
+    });
+
+    var saved = null;
+    try { saved = localStorage.getItem('lfg-events-view'); } catch (e) {}
+
+    var api = {
+      active: active,
+      render: render,
+      goto: function (monthId) {
+        var i = MONTH_IDS.indexOf(monthId);
+        if (i !== -1) { month = i; render(); }
+      }
+    };
+    if (saved === 'cal') setTimeout(function () { setView('cal', false); }, 0);
+    return api;
+  })();
 
   /* --------------------------------------------------------- surprise --- */
 

@@ -28,7 +28,7 @@ THEME_CSS = BUILD / "theme.css"
 APP_JS = BUILD / "app.js"
 EVENTS_MAIN = BUILD / "events-2026.main.html"
 
-BUILT_ON = "4 Oct 2026"
+BUILT_ON = "13 Oct 2026"
 
 ARROW = '<span class="arrow" aria-hidden="true">&#8599;</span>'
 
@@ -351,8 +351,137 @@ def build_guide(sections) -> str:
     )
 
 
+# ----------------------------------------------------------- event dates ---
+
+DOW = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+MONTH_NUM = {short.lower(): i + 1 for i, (_, short) in enumerate(MONTHS)}
+
+# "Sat 28", "Fri 1 Jan 2027", "21 Aug", "Sun 1 Nov"
+DATE_PART = re.compile(
+    r"(?:(mon|tue|wed|thu|fri|sat|sun)[a-z]*\s+)?(\d{1,2})"
+    r"(?:\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)?"
+    r"(?:\s+(\d{4}))?", re.I)
+
+
+def _resolve(part, month: int, year: int, warnings: list, label: str):
+    """One side of a date label → datetime.date. A side without its own month is
+    placed in the section's month or a neighbour, whichever its weekday fits."""
+    from datetime import date
+    dow, day, mon, yr = part.groups()
+    day = int(day)
+    if mon:
+        candidates = [(int(yr) if yr else year, MONTH_NUM[mon.lower()])]
+    else:
+        candidates = [(year, month)]
+        for step in (-1, 1):
+            m, y = month + step, year
+            if m == 0: m, y = 12, year - 1
+            if m == 13: m, y = 1, year + 1
+            candidates.append((y, m))
+    valid = []
+    for y, m in candidates:
+        try:
+            valid.append(date(y, m, day))
+        except ValueError:
+            pass
+    if not valid:
+        return None
+    if dow:
+        fits = [d for d in valid if DOW[d.weekday()] == dow.lower()[:3]]
+        if fits:
+            return fits[0]
+        warnings.append(f"{label!r}: {dow} {day} isn't that weekday")
+    return valid[0]
+
+
+def event_dates(label: str, month: int, year: int, warnings: list) -> dict:
+    """Turn a card's date label into data attributes for the calendar view.
+
+    Returns start/end (ISO), an explicit list of days for "Sat 17 & Sat 24",
+    'opens' for "Opens Fri 13" / "From Tue 10", or 'undated' for TBC/month-only."""
+    text = html.unescape(re.sub(r"<[^>]+>", "", label))
+    text = text.replace("–", "-").replace("—", "-").replace("·", " ").strip()
+    if "TBC" in text or not re.search(r"\d", text):
+        return {"undated": "1"}
+
+    opens = re.match(r"(?i)(opens|from)\s+", text)
+    if opens:
+        text = text[opens.end():]
+
+    if "-" in text:
+        left, right = (s.strip() for s in text.split("-", 1))
+        lm, rm = DATE_PART.search(left), DATE_PART.search(right)
+        if not (lm and rm):
+            warnings.append(f"{label!r}: can't read range")
+            return {"undated": "1"}
+        end = _resolve(rm, month, year, warnings, label)
+        # an unmarked left side sits in the section month (or the one its weekday fits)
+        start = _resolve(lm, month, year, warnings, label)
+        if end and start and end < start and not rm.group(4):
+            end = end.replace(year=end.year + 1)
+        if not (start and end):
+            return {"undated": "1"}
+        return {"start": start.isoformat(), "end": end.isoformat()}
+
+    parts = list(DATE_PART.finditer(text))
+    days = [d for d in (_resolve(p, month, year, warnings, label) for p in parts) if d]
+    if not days:
+        return {"undated": "1"}
+    out = {"start": days[0].isoformat(), "end": days[-1].isoformat()}
+    if len(days) > 1:
+        out["days"] = ",".join(d.isoformat() for d in days)
+    if opens:
+        out["opens"] = "1"
+    return out
+
+
+def date_attrs(main: str, year: int, warnings: list) -> str:
+    """Stamp every event card with machine-readable dates from its label."""
+    def per_section(sec):
+        month = MONTH_NUM[sec.group(1)]
+
+        def per_card(card):
+            label = re.search(r'<span class="event-date">(.*?)</span>', card.group(0), re.S).group(1)
+            attrs = event_dates(label, month, year, warnings)
+            extra = "".join(f' data-{k}="{v}"' for k, v in attrs.items())
+            return card.group(0).replace('<div class="event-card">', f'<div class="event-card"{extra}>', 1)
+
+        return re.sub(r'<div class="event-card">.*?<span class="event-date">.*?</span>',
+                      per_card, sec.group(0), flags=re.S)
+
+    return re.sub(r'<section class="month-group" id="m-([a-z]{3})".*?</section>',
+                  per_section, main, flags=re.S)
+
+
+def calendar_shell() -> str:
+    """Empty frame for the month-grid view; app.js fills it from the cards."""
+    days = "".join(f"<span>{d}</span>" for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
+    return f"""  <div class="view-switch" role="group" aria-label="View">
+    <button type="button" class="view-btn" data-view="list" aria-pressed="true">List</button>
+    <button type="button" class="view-btn" data-view="cal" aria-pressed="false">{icon('calendar')}Calendar</button>
+  </div>
+
+  <section class="cal" id="cal" hidden aria-label="Month calendar">
+    <div class="cal-head">
+      <button type="button" class="cal-nav" id="cal-prev" aria-label="Previous month">&#8249;</button>
+      <h2 class="cal-title" id="cal-title" aria-live="polite"></h2>
+      <button type="button" class="cal-nav" id="cal-next" aria-label="Next month">&#8250;</button>
+      <button type="button" class="cal-today" id="cal-today">Today</button>
+    </div>
+    <div class="cal-weekdays" aria-hidden="true">{days}</div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div class="cal-day" id="cal-day"></div>
+    <div class="cal-ongoing" id="cal-ongoing"></div>
+  </section>
+"""
+
+
 def build_events() -> str:
     main = EVENTS_MAIN.read_text(encoding="utf-8")
+    warnings: list[str] = []
+    main = date_attrs(main, 2026, warnings)
+    for w in warnings:
+        print(f"warning: events-2026 {w}")
 
     # month sections become stops on the year, coloured by season
     def retint(match):
@@ -366,7 +495,7 @@ def build_events() -> str:
         retint,
         main,
     )
-    main = main.replace('<div class="event-card">', '<div class="event-card" data-item>')
+    main = main.replace('<div class="event-card"', '<div class="event-card" data-item')
     main = main.replace('<span class="count">', '<span class="count" data-count>')
 
     # months with nothing booked in yet are drawn quiet rather than loud
@@ -423,6 +552,7 @@ def build_events() -> str:
 
 {toolbar('Search the year — try "market", "fireworks", "free"',
          'london-guide.html', 'Guide', 'search', pill_markup, surprise=False)}
+{calendar_shell()}
 {main}
   <div class="empty">
     <h2>Nothing matches &ldquo;<span id="empty-query"></span>&rdquo;</h2>
