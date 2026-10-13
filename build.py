@@ -170,8 +170,11 @@ def render_chip(venue: dict) -> str:
     note = f'<span class="note">{esc(venue["note"])}</span>' if venue.get("note") else ""
     tags = venue.get("tags") or []
     marked = "".join(f" is-{t}" for t in tags)
+    # dead links stay as references but can't be picked for a plan
+    pick = "" if "link dead" in venue.get("note", "").lower() else \
+        f' data-pick="{short_id("p", venue["url"], venue["name"])}"'
     return (
-        f'<a class="chip{marked}" data-leaf href="{esc(venue["url"])}" '
+        f'<a class="chip{marked}" data-leaf{pick} href="{esc(venue["url"])}" '
         f'target="_blank" rel="noopener">{esc(venue["name"])}{badges(tags)}{note}{ARROW}</a>'
     )
 
@@ -179,10 +182,13 @@ def render_chip(venue: dict) -> str:
 def render_stop(stop: dict) -> str:
     if stop["kind"] == "note":
         link = stop["link"]
+        pick = "" if "link dead" in stop["note"].lower() else \
+            f' data-pick="{short_id("p", link["url"], link["name"])}"'
         note = f'<p class="stop-note">{esc(stop["note"])}</p>' if stop["note"] else ""
         return (
             '        <div class="stop stop--note" data-item>\n'
-            f'          <a class="stop-title" data-label href="{esc(link["url"])}" '
+            f'          <a class="stop-title" data-label{pick} '
+            f'href="{esc(link["url"])}" '
             f'target="_blank" rel="noopener">{esc(link["name"])}{ARROW}</a>{badges(link.get("tags") or [])}\n'
             f'          {note}\n'
             '        </div>'
@@ -208,6 +214,8 @@ def render_lines(sections):
         slug = f"line-{index}"
         total = sum(stop_count(s) for s in section["stops"])
         stops = "\n".join(render_stop(s) for s in section["stops"])
+        if short == "Resources":  # listings sites, not things to do
+            stops = re.sub(r' data-pick="[a-z0-9]{5}"', "", stops)
         blocks.append(
             f'      <section class="line" id="{slug}" data-group="{slug}" '
             f'style="--accent: var(--{colour})" aria-labelledby="{slug}-h">\n'
@@ -354,6 +362,8 @@ def build_guide(sections) -> str:
       <span class="legend-sep" aria-hidden="true"></span>
       <span>every entry links straight to the venue</span>
     </p>
+    <p class="swipe-cta"><a href="swipe.html">&#9829; Swipe together</a>
+      <button type="button" class="pick-toggle" id="pick-toggle">&#10003; Pick together</button></p>
   </header>
 
 {toolbar('Search 222 spots — try "golf", "rooftop", "Soho"'.replace('222', str(total)),
@@ -366,6 +376,16 @@ def build_guide(sections) -> str:
     <h2>Nothing matches &ldquo;<span id="empty-query"></span>&rdquo;</h2>
     <p>Try a shorter word, or a neighbourhood like Shoreditch or Peckham.</p>
     <button type="button" id="reset">Show everything</button>
+  </div>
+
+
+  <div class="pick-bar" id="pick-bar" hidden>
+    <p class="pick-note" id="pick-note"></p>
+    <div class="pick-row">
+      <span class="pick-count" id="pick-count">0 picked</span>
+      <button type="button" class="pick-cancel" id="pick-cancel">Cancel</button>
+      <button type="button" class="pick-done" id="pick-done">Done</button>
+    </div>
   </div>
 
   <footer class="colophon">
@@ -475,11 +495,16 @@ def date_attrs(main: str, year: int, warnings: list) -> str:
         def per_card(card):
             label = re.search(r'<span class="event-date">(.*?)</span>', card.group(0), re.S).group(1)
             attrs = event_dates(label, month, year, warnings)
+            h3 = re.search(r"<h3>(.*?)</h3>", card.group(0), re.S)
+            if h3 and attrs.get("start"):
+                href = re.search(r'href="([^"]+)"', h3.group(1))
+                name = plain(h3.group(1)).rstrip("\u2197").strip()
+                attrs["pick"] = short_id("e", html.unescape(href.group(1)) if href else "", name, attrs["start"])
             extra = "".join(f' data-{k}="{v}"' for k, v in attrs.items())
             return re.sub(r'<div class="event-card"([^>]*)>', lambda m: f'<div class="event-card"{m.group(1)}{extra}>',
                           card.group(0), count=1)
 
-        return re.sub(r'<div class="event-card"[^>]*>.*?<span class="event-date">.*?</span>',
+        return re.sub(r'<div class="event-card"[^>]*>.*?</h3>',
                       per_card, sec.group(0), flags=re.S)
 
     return re.sub(r'<section class="month-group" id="m-([a-z]{3})".*?</section>',
@@ -682,6 +707,8 @@ def build_events() -> str:
       <span class="legend-sep" aria-hidden="true"></span>
       <span><b>{len(MONTHS) - len(empties)}</b> months with something on</span>
     </p>
+    <p class="swipe-cta"><a href="swipe.html">&#9829; Swipe together</a>
+      <button type="button" class="pick-toggle" id="pick-toggle">&#10003; Pick together</button></p>
     <nav class="years" aria-label="Choose year">
       <span class="years-label">Year</span>
       <a href="events-2026.html" aria-current="true">2026</a>
@@ -699,6 +726,16 @@ def build_events() -> str:
     <button type="button" id="reset">Show the whole year</button>
   </div>
 
+
+  <div class="pick-bar" id="pick-bar" hidden>
+    <p class="pick-note" id="pick-note"></p>
+    <div class="pick-row">
+      <span class="pick-count" id="pick-count">0 picked</span>
+      <button type="button" class="pick-cancel" id="pick-cancel">Cancel</button>
+      <button type="button" class="pick-done" id="pick-done">Done</button>
+    </div>
+  </div>
+
   <footer class="colophon">
     <span>Part of the <a href="london-guide.html">London Field Guide</a></span>
     <span>TBC entries update as organisers confirm dates</span>
@@ -709,6 +746,184 @@ def build_events() -> str:
     return document(
         "London Events 2026 — Field Guide",
         "A month-by-month calendar of London festivals, markets and seasonal events in 2026.",
+        body,
+    )
+
+
+# ------------------------------------------------------------------ swipe ---
+
+SWIPE_JS = BUILD / "swipe.js"
+ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def short_id(*parts: str, length: int = 5) -> str:
+    """A stable 5-char id from the entry's own details, so a share link made
+    before a rebuild still points at the same cards after it."""
+    import hashlib
+    n = int(hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:12], 16)
+    out = ""
+    for _ in range(length):
+        n, r = divmod(n, 36)
+        out += ID_ALPHABET[r]
+    return out
+
+
+def swipe_deck(guide: dict, events: dict) -> list[dict]:
+    """Everything that can be a card: guide places (not the Resources links, not
+    dead links) and dated events."""
+    cards, seen = [], set()
+
+    def add(card, *key):
+        cid = short_id(*key)
+        if cid in seen:  # the same place listed under two categories: one card is enough
+            return
+        seen.add(cid)
+        card["id"] = cid
+        cards.append(card)
+
+    for index, cat in enumerate(guide["categories"]):
+        if LINES[index][1] == "Resources":
+            continue
+        for e in cat["entries"]:
+            if "link dead" in e["note"].lower():
+                continue
+            add({"k": "p", "n": e["name"], "u": e["url"], "c": cat["short"],
+                 "l": LINES[index][2], "g": e["group"], "t": e["note"],
+                 "r": int(e["recommended"]), "f": int(e["featured"])},
+                "p", e["url"], e["name"])
+
+    for ev in events["events"]:
+        if not ev["dated"]:
+            continue
+        season = MONTH_SEASON[MONTHS[ev["month"] - 1][0]]
+        add({"k": "e", "n": ev["name"], "u": ev["url"], "c": "Events",
+             "l": f"season-{season}", "w": ev["when"], "t": ev["description"],
+             "s": ev["start"], "e": ev["end"], "d": ev["days"],
+             "r": int(ev["recommended"]), "f": int(ev["featured"])},
+            "e", ev["url"] or "", ev["name"], ev["start"] or "")
+    return cards
+
+
+def build_swipe(guide: dict, events: dict) -> str:
+    import json
+    deck = swipe_deck(guide, events)
+    data = json.dumps(deck, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    cats = [short for _, short, _ in LINES if short != "Resources"] + ["Events"]
+    chips = "\n".join(
+        f'        <button type="button" class="pill" data-cat="{esc(c)}" aria-pressed="false" '
+        f'style="--accent: var(--{"season-autumn" if c == "Events" else next(col for _, s, col in LINES if s == c)})">'
+        f'<i aria-hidden="true"></i>{esc(c)}</button>'
+        for c in cats)
+    script = SWIPE_JS.read_text(encoding="utf-8").strip()
+
+    body = f"""<div class="page swipe-page">
+  <a class="back-link" href="london-guide.html">{icon('back')} Back to the field guide</a>
+
+  <header class="masthead masthead--tight">
+    <p class="eyebrow">Swipe together &middot; London</p>
+    <h1 class="title">WHAT SHALL<span>WE DO?</span></h1>
+    <p class="dek">You each swipe the same cards on your own &mdash; no peeking at each other&rsquo;s.
+      At the end you see what you <b>both</b> said yes to.</p>
+  </header>
+
+  <main class="swipe" id="swipe">
+
+    <section class="sw-screen" data-screen="setup">
+      <p class="sw-small">Rather tick from the whole guide? <a href="london-guide.html#pick">Pick together on the guide &rarr;</a></p>
+      <div class="sw-field">
+        <label class="sw-label" for="sw-name">Your name</label>
+        <input id="sw-name" class="sw-input" type="text" maxlength="20" autocomplete="given-name" placeholder="e.g. Kenny">
+      </div>
+      <div class="sw-field">
+        <span class="sw-label">When?</span>
+        <div class="sw-seg" role="group" aria-label="When">
+          <button type="button" class="pill" data-when="any" aria-pressed="true">Any time</button>
+          <button type="button" class="pill" data-when="weekend" aria-pressed="false">This weekend</button>
+          <button type="button" class="pill" data-when="date" aria-pressed="false">Pick a date</button>
+        </div>
+        <input id="sw-date" class="sw-input sw-date" type="date" hidden>
+      </div>
+      <div class="sw-field">
+        <span class="sw-label">What kind of thing? <small>(leave all off for everything)</small></span>
+        <div class="sw-chips" role="group" aria-label="Categories">
+{chips}
+        </div>
+      </div>
+      <div class="sw-field">
+        <span class="sw-label">How many cards?</span>
+        <div class="sw-seg" role="group" aria-label="Deck size">
+          <button type="button" class="pill" data-size="15" aria-pressed="false">15</button>
+          <button type="button" class="pill" data-size="25" aria-pressed="true">25</button>
+          <button type="button" class="pill" data-size="40" aria-pressed="false">40</button>
+        </div>
+      </div>
+      <button type="button" class="sw-go" id="sw-start">Start swiping</button>
+      <p class="sw-small">Got a link or code from someone? <button type="button" class="sw-linkbtn" data-goto="join">Join their session</button></p>
+    </section>
+
+    <section class="sw-screen" data-screen="join" hidden>
+      <p class="sw-lead">Paste the link or code you were sent.</p>
+      <textarea id="sw-code" class="sw-input sw-code" rows="3" spellcheck="false" placeholder="https://…/swipe.html#…"></textarea>
+      <p class="sw-error" id="sw-join-error" hidden></p>
+      <button type="button" class="sw-go" id="sw-join">Join</button>
+      <p class="sw-small"><button type="button" class="sw-linkbtn" data-goto="setup">&larr; Start a new one instead</button></p>
+    </section>
+
+    <section class="sw-screen" data-screen="invite" hidden>
+      <p class="sw-lead" id="sw-invite-lead"></p>
+      <div class="sw-field">
+        <label class="sw-label" for="sw-name-b">Your name</label>
+        <input id="sw-name-b" class="sw-input" type="text" maxlength="20" autocomplete="given-name">
+      </div>
+      <button type="button" class="sw-go" id="sw-invite-go">Start swiping</button>
+    </section>
+
+    <section class="sw-screen" data-screen="deck" hidden>
+      <div class="sw-progress"><span id="sw-who"></span><span id="sw-count"></span></div>
+      <div class="sw-bar"><i id="sw-bar"></i></div>
+      <div class="sw-stack" id="sw-stack" aria-live="polite"></div>
+      <div class="sw-actions">
+        <button type="button" class="sw-btn sw-btn--no" id="sw-no" aria-label="Nope">&#10005;</button>
+        <button type="button" class="sw-btn sw-btn--undo" id="sw-undo" aria-label="Undo last">&#8630;</button>
+        <button type="button" class="sw-btn sw-btn--yes" id="sw-yes" aria-label="Yes">&#9829;</button>
+      </div>
+      <p class="sw-small sw-keys">Drag the card, tap the buttons, or use &larr; &rarr; keys.</p>
+    </section>
+
+    <section class="sw-screen" data-screen="handoff" hidden>
+      <p class="sw-lead" id="sw-handoff-lead"></p>
+      <div class="sw-share">
+        <button type="button" class="sw-go" id="sw-share">Send to your partner</button>
+        <button type="button" class="sw-go sw-go--ghost" id="sw-copy">Copy link</button>
+      </div>
+      <p class="sw-small" id="sw-handoff-small">They&rsquo;ll swipe the same cards without seeing yours, then you&rsquo;ll both see the matches.</p>
+      <div class="sw-or"><span>or</span></div>
+      <button type="button" class="sw-go sw-go--ghost" id="sw-pass">Same phone &mdash; pass it over</button>
+    </section>
+
+    <section class="sw-screen" data-screen="results" hidden>
+      <div id="sw-results"></div>
+      <div class="sw-share">
+        <button type="button" class="sw-go" id="sw-share-results">Share the matches</button>
+        <button type="button" class="sw-go sw-go--ghost" id="sw-again">Start again</button>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="colophon">
+    <span>Part of the <a href="london-guide.html">London Field Guide</a> &middot; <a href="events-2026.html">Events</a></span>
+    <span>Nothing is stored on a server &mdash; your picks live in the link you share</span>
+  </footer>
+</div>
+<script type="application/json" id="sw-data">{data}</script>
+<script>
+{script}
+</script>"""
+
+    return document(
+        "Swipe Together — London Field Guide",
+        "Both swipe the same London plans on your own phones, then see what you both said yes to.",
         body,
     )
 
@@ -724,7 +939,9 @@ def main() -> None:
     (ROOT / "index.html").write_text(guide, encoding="utf-8")
     (ROOT / "london-guide.html").write_text(guide, encoding="utf-8")
     (ROOT / "events-2026.html").write_text(build_events(), encoding="utf-8")
-    write_api(guide_json(sections), EVENTS_DATA)
+    guide_data = guide_json(sections)
+    write_api(guide_data, EVENTS_DATA)
+    (ROOT / "swipe.html").write_text(build_swipe(guide_data, EVENTS_DATA), encoding="utf-8")
 
     venues = sum(stop_count(s) for section in sections for s in section["stops"])
     print(f"guide     {venues} entries across {len(sections)} categories")

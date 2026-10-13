@@ -525,6 +525,110 @@
     return api;
   })();
 
+  /* -------------------------------------------------------- pick mode --- */
+
+  // "Pick together": chips and event cards tick instead of opening, across the
+  // guide and events pages, then the picks go to swipe.html to share or match.
+  // A partner arrives on london-guide.html#pick=<picked ids>/<name>, with those
+  // picks carried along but never shown.
+  var pickBar = $('#pick-bar');
+  if (pickBar) (function () {
+    var KEY = 'lfg-picks', ON = 'lfg-picking', PARTNER = 'lfg-pick-partner';
+    var toggle = $('#pick-toggle');
+
+    function get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+    function put(k, v) {
+      try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {}
+    }
+    function escHTML(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+
+    var picked = (get(KEY) || '').match(/.{5}/g) || [];
+    var arrived = location.hash.match(/^#pick(?:=([a-z0-9]*)\/?(.*))?$/);
+    if (arrived) {
+      if (arrived[1]) {  // a partner's link: start fresh, their picks ride along
+        put(PARTNER, arrived[1] + '/' + (arrived[2] || ''));
+        picked = [];
+      }
+      put(ON, '1');
+      history.replaceState(null, '', location.pathname);
+    }
+    var partner = null;
+    var stored = get(PARTNER);
+    if (stored) {
+      var cut = stored.indexOf('/');
+      partner = { ids: stored.slice(0, cut), name: decodeURIComponent(stored.slice(cut + 1)) };
+    }
+
+    function sync() {
+      $$('[data-pick]').forEach(function (el) {
+        el.classList.toggle('is-ticked', picked.indexOf(el.getAttribute('data-pick')) !== -1);
+      });
+      $('#pick-count').textContent = picked.length + ' picked';
+      $('#pick-done').disabled = !picked.length;
+      put(KEY, picked.length ? picked.join('') : null);
+    }
+
+    function start() {
+      put(ON, '1');
+      body.classList.add('is-picking');
+      pickBar.hidden = false;
+      if (toggle) toggle.innerHTML = '&#10005; Stop picking';
+      $('#pick-note').innerHTML = partner
+        ? '<b>' + escHTML(partner.name || 'Your partner') + '</b> has picked &mdash; your turn. ' +
+          'Their picks stay hidden until you&rsquo;re done.'
+        : 'Tap everything you&rsquo;d be up for. Picks carry over between the Guide and Events pages.';
+      sync();
+    }
+
+    function stop() {
+      put(ON, null); put(KEY, null); put(PARTNER, null);
+      picked = []; partner = null;
+      body.classList.remove('is-picking');
+      pickBar.hidden = true;
+      if (toggle) toggle.innerHTML = '&#10003; Pick together';
+      sync();
+    }
+
+    // capture phase, so a tick never also follows the venue link
+    document.addEventListener('click', function (e) {
+      if (!body.classList.contains('is-picking')) return;
+      var el = e.target.closest('[data-pick]');
+      if (!el) return;
+      e.preventDefault();
+      var id = el.getAttribute('data-pick');
+      var i = picked.indexOf(id);
+      if (i === -1) picked.push(id); else picked.splice(i, 1);
+      sync();
+    }, true);
+
+    if (toggle) {
+      toggle.addEventListener('click', function () {
+        if (body.classList.contains('is-picking')) stop(); else start();
+      });
+    }
+    $('#pick-cancel').addEventListener('click', stop);
+    $('#pick-done').addEventListener('click', function () {
+      var name = '';
+      try { name = localStorage.getItem('lfg-swipe-name') || ''; } catch (e) {}
+      if (!name) {
+        name = (window.prompt('Your name, so your partner knows who picked:') || '').trim();
+        try { localStorage.setItem('lfg-swipe-name', name); } catch (e) {}
+      }
+      var mine = picked.join('');
+      var url = 'swipe.html#p/' + (partner
+        ? partner.ids + '/' + encodeURIComponent(partner.name) + '/' + mine + '/' + encodeURIComponent(name)
+        : mine + '/' + encodeURIComponent(name));
+      stop();
+      location.href = url;
+    });
+
+    if (get(ON) === '1') start(); else sync();
+  })();
+
   /* --------------------------------------------------------- surprise --- */
 
   var surprise = $('#surprise');

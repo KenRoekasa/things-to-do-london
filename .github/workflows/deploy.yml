@@ -35,7 +35,7 @@ jobs:
       - name: Stage site
         run: |
           mkdir _site
-          cp index.html london-guide.html events-*.html _site/
+          cp index.html london-guide.html events-*.html swipe.html _site/
           cp -r api _site/
 
       - uses: actions/upload-pages-artifact@v5

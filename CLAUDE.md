@@ -41,6 +41,7 @@ run means the live site is still on the old version.
 | `tools/health.py` | dead links, TBCs coming due, unconfirmed dates, stale "opening…" notes → weekly `site-health` issue |
 | `index.html`, `london-guide.html` | generated, git-ignored — byte-identical copies of the guide |
 | `events-2026.html` | generated, git-ignored — the calendar |
+| `swipe.html` | generated, git-ignored — "Swipe together": both people swipe the same deck blind, then see matches. Logic in `build/swipe.js`; the deck is the guide + dated events, embedded at build time. Sessions live only in the URL hash (5-char card ids + yes/no bitmasks), no server. **Pick together** is the other way in: a toggle on the guide/events pages (`app.js`) turns `[data-pick]` chips and cards into tick boxes, and Done hands `#p/<ids>/<name>` to `swipe.html`. Every pickable gets the same `short_id()` as its deck card — the build keeps them in step |
 | `api/*.json` | generated, git-ignored — read-only JSON API (`index`, `guide`, `events-2026`), published alongside the pages |
 
 Pages are fully self-contained: fonts, CSS and JS are inlined so they open straight off
