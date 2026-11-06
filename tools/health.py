@@ -7,6 +7,8 @@
 Finds the things that go stale on their own: links that have died, calendar
 entries still marked TBC as their month arrives, dates we flagged as
 unconfirmed, and guide notes like "opening Oct 2026" once that date is past.
+Every TBC or unconfirmed entry is re-checked each week: its own page is read
+for upcoming dates, and the issue carries a search link to confirm by hand.
 Stdlib only, like build.py.
 """
 
@@ -21,6 +23,7 @@ import socket
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -77,6 +80,7 @@ class Card:
     when: str
     name: str
     text: str
+    url: str = ""
 
 
 # --- reading the sources -----------------------------------------------------
@@ -122,7 +126,9 @@ def calendar_cards() -> list[Card]:
                 body = card.group(1)
                 when = strip_tags(re.search(r'<span class="event-date">(.*?)</span>', body, re.S).group(1))
                 name = strip_tags(re.search(r"<h3>(.*?)</h3>", body, re.S).group(1)).rstrip("↗").strip()
-                cards.append(Card(month, year, when, name, strip_tags(body)))
+                href = re.search(r'href="(https?://[^"]+)"', body)
+                url = html.unescape(href.group(1)) if href else ""
+                cards.append(Card(month, year, when, name, strip_tags(body), url))
     return cards
 
 
@@ -218,15 +224,90 @@ def unconfirmed_due(cards: list[Card], today: date) -> list[Card]:
 GUIDE_TBC = re.compile(r"\bTBC\b|unconfirmed|not yet confirmed|not announced", re.I)
 
 
-def guide_tbc() -> list[tuple[str, str]]:
-    """Guide entries whose note still says a date is TBC."""
+def guide_tbc() -> list[tuple[str, str, str]]:
+    """(name, note, url) for guide entries whose note still says a date is TBC."""
     out = []
-    for name, text in guide_entries():
+    for name, url, text in guide_entries_with_urls():
         m = GUIDE_TBC.search(text)
         if m and not KNOWN_DEAD.search(text):
             note = text[len(name):].strip(" ,")
-            out.append((name, note[:140]))
+            out.append((name, note[:140], url))
     return out
+
+
+# --- re-checking TBCs ----------------------------------------------------------
+# Each week, open the entry's own page and look for dates on it, so a newly
+# announced date shows up in the issue without anyone having to go looking.
+
+PAGE_DATE = re.compile(
+    r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:,?\s+(\d{4}))?"
+    r"|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4}))?",
+    re.I)
+
+
+def fetch_text(url: str) -> tuple[str, str]:
+    """(page text, '') or ('', why it couldn't be read)."""
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read(2_000_000).decode(resp.headers.get_content_charset() or "utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return "", f"HTTP {e.code}"
+    except Exception as e:
+        return "", type(e).__name__
+    raw = re.sub(r"(?is)<(script|style|noscript)\b.*?</\1>", " ", raw)
+    return re.sub(r"\s+", " ", strip_tags(raw)), ""
+
+
+def upcoming_dates(text: str, today: date) -> list[date]:
+    """Dates on a page from today up to a year out. A date with no year counts
+    only if it falls within the next six months, since pages often still carry
+    last year's dates."""
+    found = set()
+    for m in PAGE_DATE.finditer(text):
+        day, mon, year = (m.group(1), m.group(2), m.group(3)) if m.group(1) else (m.group(5), m.group(4), m.group(6))
+        mo = MONTHS[mon.lower()[:3]]
+        try:
+            if year:
+                d = date(int(year), mo, int(day))
+                if not (today <= d <= today + timedelta(days=365)):
+                    continue
+            else:
+                d = date(today.year, mo, int(day))
+                if d < today:
+                    d = date(today.year + 1, mo, int(day))
+                if d > today + timedelta(days=183):
+                    continue
+        except ValueError:
+            continue
+        found.add(d)
+    return sorted(found)
+
+
+def search_link(name: str, today: date) -> str:
+    q = urllib.parse.quote_plus(f"{name} {today.year} dates")
+    return f"https://www.google.com/search?q={q}"
+
+
+def recheck(url: str, today: date) -> str:
+    """One line on what the entry's page says now."""
+    if not url.startswith(("http://", "https://")):
+        return "no link to check"
+    text, why = fetch_text(url)
+    if why:
+        return f"couldn't read its page ({why})"
+    dates = upcoming_dates(text, today)
+    if not dates:
+        return "no upcoming dates on its page yet"
+    shown = ", ".join(f"{d:%a} {d.day} {d:%b}" for d in dates[:5])
+    more = f" (+{len(dates) - 5} more)" if len(dates) > 5 else ""
+    return f"its page now mentions **{shown}**{more}"
+
+
+def recheck_all(urls: list[str], today: date) -> dict[str, str]:
+    urls = list(dict.fromkeys(urls))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return dict(zip(urls, pool.map(lambda u: recheck(u, today), urls)))
 
 
 def stale_notes(today: date) -> list[tuple[str, str]]:
@@ -251,8 +332,14 @@ def stale_notes(today: date) -> list[tuple[str, str]]:
 
 # --- report ------------------------------------------------------------------
 
-def render(today: date, dead, flaky, tbc, unconfirmed, stale, guide_tbcs=()) -> str:
+def render(today: date, dead, flaky, tbc, unconfirmed, stale, guide_tbcs=(), checks=None) -> str:
     lines = []
+    checks = checks or {}
+
+    def lookup(name: str, url: str) -> str:
+        found = checks.get(url)
+        found = f"🔎 {found} · " if found else ""
+        return f"  \n  {found}[search]({search_link(name, today)})"
 
     def section(title: str, items: list[str]) -> None:
         if items:
@@ -266,11 +353,13 @@ def render(today: date, dead, flaky, tbc, unconfirmed, stale, guide_tbcs=()) -> 
         return " ⏰ **within 4 weeks**" if soon(c, today) else ""
 
     section(f"🗓️ All TBC dates still to confirm ({len(tbc)})",
-            [f"**{c.name}** — {calendar.month_name[c.month]}, still “{c.when}”{flag(c)}" for c in tbc])
+            [f"**{c.name}** — {calendar.month_name[c.month]}, still “{c.when}”{flag(c)}{lookup(c.name, c.url)}"
+             for c in tbc])
     section(f"❓ Unconfirmed dates to re-check ({len(unconfirmed)})",
-            [f"**{c.name}** — {c.when} ({calendar.month_name[c.month]}){flag(c)}" for c in unconfirmed])
+            [f"**{c.name}** — {c.when} ({calendar.month_name[c.month]}){flag(c)}{lookup(c.name, c.url)}"
+             for c in unconfirmed])
     section(f"📝 Guide entries still TBC ({len(guide_tbcs)})",
-            [f"**{name}** — {note}" for name, note in guide_tbcs])
+            [f"**{name}** — {note}{lookup(name, url)}" for name, note, url in guide_tbcs])
     section(f"✏️ Guide notes that have gone stale ({len(stale)})",
             [f"**{name}** — “{phrase}” has passed" for name, phrase in stale])
     section(f"⚠️ Couldn't reach — may be temporary ({len(flaky)})",
@@ -313,8 +402,10 @@ def main() -> None:
 
     cards = calendar_cards()
     dead, flaky = ([], []) if args.no_links else check_links(guide_links() + calendar_links())
-    body = render(args.today, dead, flaky, tbc_due(cards, args.today),
-                  unconfirmed_due(cards, args.today), stale_notes(args.today), guide_tbc())
+    tbc, unconfirmed, guide_tbcs = tbc_due(cards, args.today), unconfirmed_due(cards, args.today), guide_tbc()
+    to_check = [c.url for c in tbc + unconfirmed] + [url for _, _, url in guide_tbcs]
+    checks = {} if args.no_links else recheck_all(to_check, args.today)
+    body = render(args.today, dead, flaky, tbc, unconfirmed, stale_notes(args.today), guide_tbcs, checks)
     title = f"🩺 Site health — w/c {args.today:%d %b}"
 
     if args.dry_run:
