@@ -40,6 +40,7 @@ LINES = [
     ("Food To Try", "Food", "line-4"),
     ("Markets & Shopping", "Markets", "line-5"),
     ("Outdoors & General Activities", "Outdoors", "line-6"),
+    ("Classes & Workshops", "Classes", "line-10"),
     ("Summer & Annual Festivals", "Festivals", "line-7"),
     ("Seasonal Events: Winter/Christmas", "Winter", "line-8"),
     ("Websites & Resources", "Resources", "line-9"),

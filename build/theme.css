@@ -31,6 +31,7 @@
   --line-7: #563AAE;  /* festivals        */
   --line-8: #A61F44;  /* winter           */
   --line-9: #47576A;  /* resources (grey: not a place) */
+  --line-10: #0B6589; /* classes          */
 
   /* the events page reads the year as four seasons */
   --season-winter: #1F47A8;
@@ -70,6 +71,7 @@
     --line-7: #AF9AFF;
     --line-8: #FF7C9C;
     --line-9: #A2B4C8;
+    --line-10: #5BC0E0;
 
     --season-winter: #7FA6FF;
     --season-spring: #8FCC64;
@@ -88,7 +90,7 @@
   --rail-fade: 0.32; --chip-lift: rgba(16, 21, 28, 0.05);
   --line-1: #C22E1F; --line-2: #1F47A8; --line-3: #0B6B67; --line-4: #925C05;
   --line-5: #8A2A6C; --line-6: #3A6A1F; --line-7: #563AAE; --line-8: #A61F44;
-  --line-9: #47576A;
+  --line-9: #47576A; --line-10: #0B6589;
   --season-winter: #1F47A8; --season-spring: #3A6A1F;
   --season-summer: #C22E1F; --season-autumn: #925C05;
 }
@@ -102,7 +104,7 @@
   --rail-fade: 0.45; --chip-lift: rgba(232, 237, 243, 0.05);
   --line-1: #FF6E54; --line-2: #7FA6FF; --line-3: #3CC9BE; --line-4: #F0AE41;
   --line-5: #EE86CE; --line-6: #8FCC64; --line-7: #AF9AFF; --line-8: #FF7C9C;
-  --line-9: #A2B4C8;
+  --line-9: #A2B4C8; --line-10: #5BC0E0;
   --season-winter: #7FA6FF; --season-spring: #8FCC64;
   --season-summer: #FF6E54; --season-autumn: #F0AE41;
 }
