@@ -38,6 +38,7 @@ LINES = [
     ("Entertainment & Immersive Experiences", "Entertainment", "line-2"),
     ("Bars, Rooftops & Dining", "Bars & Dining", "line-3"),
     ("Food To Try", "Food", "line-4"),
+    ("Food Halls", "Food Halls", "line-11"),
     ("Markets & Shopping", "Markets", "line-5"),
     ("Outdoors & General Activities", "Outdoors", "line-6"),
     ("Classes & Workshops", "Classes", "line-10"),
